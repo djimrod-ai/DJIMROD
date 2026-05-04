@@ -2,22 +2,50 @@ import streamlit as st
 import requests
 import pandas as pd
 from datetime import datetime
-import gspread
-from google.oauth2.service_account import Credentials
+import json
+import os
 
 # --- CONFIGURACIÓN DE LA PÁGINA ---
-st.set_page_config(page_title="Editorial Intelligence Hub", page_icon="📰", layout="wide")
+st.set_page_config(page_title="Intelligence Hub Editorial", page_icon="📰", layout="wide")
 
-# --- CONFIGURACIÓN GOOGLE SHEETS ---
-# Nombre de tu hoja de cálculo exacta
-SHEET_NAME = "Nombre de tu Hoja de Calculo Aqui" 
+# ARCHIVO DE PERSISTENCIA
+DB_FILE = "user_sets.json"
 
-def conectar_google_sheets():
-    # Usamos los secretos de Streamlit para la autenticación
-    scope = ["https://www.googleapis.com/auth/spreadsheets", "https://www.googleapis.com/auth/drive"]
-    creds = Credentials.from_service_account_info(st.secrets["gcp_service_account"], scopes=scope)
-    client = gspread.authorize(creds)
-    return client.open(SHEET_NAME).get_worksheet(0)
+# --- FUNCIONES DE PERSISTENCIA (Cargar y Guardar en disco) ---
+def load_all_presets():
+    """Carga la librería base y los sets guardados por usuarios en la máquina"""
+    # Librería base (la que ya teníamos)
+    base_presets = {
+        "📈 Economía": "Bolsa\nInflación\nBCE\nEuribor\nFiscalidad\nPIB",
+        "🤖 Tecnología": "IA\nChatGPT\nNvidia\nSemicondutores\nQuantum Computing\nApple",
+        "🌍 Política Nacional": "Elecciones\nGobierno\nSindicatos\nParlamento\nRegiones",
+        "🗺️ Política Internacional": "ONU\nOTAN\nGeopolítica\nConflictos\nDiplomacia",
+        "🌱 Medio Ambiente": "Cambio Climático\nEnergía Solar\nSequía\nReciclaje\nCO2",
+        "🏥 Salud": "Pandemias\nVacunas\nSalud Mental\nBiotecnología\nOMS",
+        "⚖️ Justicia": "Sentencias\nTribunal Supremo\nLeyes\nDerechos Humanos",
+        "⚽ Deportes": "Champions\nLaLiga\nOlimpiadas\nFichajes\nTenis",
+        "🎨 Cultura": "Museos\nCine\nLiteratura\nTeatro\nFestivales",
+        "🛡️ Seguridad": "Ciberseguridad\nInteligencia\nDefensa\nPolicía"
+    }
+    
+    # Cargar sets personalizados desde el archivo JSON si existe
+    if os.path.exists(DB_FILE):
+        with open(DB_FILE, "r", encoding="utf-8") as f:
+            user_data = json.load(f)
+            base_presets.update(user_data) # Fusionar base con personalizados
+            
+    return base_presets
+
+def save_new_preset(name, keywords):
+    """Guarda un nuevo set en el archivo JSON permanentemente"""
+    data = {}
+    if os.path.exists(DB_FILE):
+        with open(DB_FILE, "r", encoding="utf-8") as f:
+            data = json.load(f)
+    
+    data[name] = keywords
+    with open(DB_FILE, "w", encoding="utf-8") as f:
+        json.dump(data, f, ensure_ascii=False, indent=4)
 
 # --- LÓGICA DE BÚSQUEDA ---
 def obtener_noticias(api_key, keywords):
@@ -31,30 +59,24 @@ def obtener_noticias(api_key, keywords):
     except Exception:
         return []
 
-# --- SEGURIDAD ---
+# --- SEGURIDAD API KEY ---
 api_key = st.secrets.get("NEWS_API_KEY", None)
 if api_key is None:
-    st.error("❌ Error: API Key de NewsAPI no configurada.")
+    st.error("❌ Error: API Key no configurada en Secrets.")
     st.stop()
 
-# --- GESTIÓN DE SETS (Google Sheets) ---
-try:
-    sheet = conectar_google_sheets()
-    # Leer todos los datos de la hoja
-    data = sheet.get_all_records()
-    # Convertir la lista de diccionarios en un diccionario de {Nombre: Keywords}
-    all_presets = {row['Set Name']: row['Keywords'] for row in data}
-except Exception as e:
-    st.error(f"Error conectando con Google Sheets: {e}")
-    all_presets = {"Error": "No se pudo cargar la base de datos"}
+# Cargar todos los sets al iniciar
+all_available_presets = load_all_presets()
 
 # --- SIDEBAR ---
-st.sidebar.title("⚙️ Control Hub")
+st.sidebar.title("⚙️ Panel de Control")
 
-# 1. BUSCADOR DINÁMICO
+# 1. BUSCADOR DE SETS DINÁMICO
 st.sidebar.subheader("🔍 Buscar Set Temático")
 search_query = st.sidebar.text_input("Buscar tema (ej. 'Tecno')")
-filtered_presets = {k: v for k, v in all_presets.items() if search_query.lower() in k.lower()}
+
+# Filtrar la librería basándose en la búsqueda
+filtered_presets = {k: v for k, v in all_available_presets.items() if search_query.lower() in k.lower()}
 preset_options = list(filtered_presets.keys())
 
 if preset_options:
@@ -64,32 +86,30 @@ if preset_options:
 else:
     st.sidebar.warning("No se encontraron sets.")
 
-# 2. AJUSTE de TEMAS
+# 2. GESTIÓN DE PALABRAS CLAVE
 st.sidebar.markdown("---")
 st.sidebar.subheader("🎯 Ajuste de Temas")
 default_val = st.session_state.get('current_keywords', "Inteligencia Artificial\nEconomía")
 keywords_input = st.sidebar.text_area("Palabras clave (una por línea)", value=default_val)
 keywords_list = [k.strip() for k in keywords_input.split('\n') if k.strip()]
 
-# 3. GUARDADO PERMANENTE EN NUBE
+# 3. CREACIÓN DE SETS PERMANENTES (La mejora solicitada)
 st.sidebar.markdown("---")
-st.sidebar.subheader("☁️ Guardar en la Nube")
+st.sidebar.subheader("💾 Crear Set Permanente")
 new_set_name = st.sidebar.text_input("Nombre del nuevo set")
-if st.sidebar.button("Guardar en Google Sheets"):
+if st.sidebar.button("Guardar en Disco"):
     if new_set_name and keywords_input:
-        try:
-            # Añadir una fila nueva al final de la hoja
-            sheet.append_row([new_set_name, keywords_input])
-            st.sidebar.success(f"Set '{new_set_name}' guardado en la nube!")
-            st.rerun()
-        except Exception as e:
-            st.sidebar.error(f"Error al guardar: {e}")
+        save_new_preset(new_set_name, keywords_input)
+        st.sidebar.success(f"Set '{new_set_name}' guardado permanentemente!")
+        # Forzamos la recarga de la librería para que aparezca el nuevo set
+        st.rerun()
 
-st.sidebar.caption("v5.0 - Enterprise Cloud Hub")
+st.sidebar.markdown("---")
+st.sidebar.caption("v4.0 - Permanent Intelligence Hub")
 
-# --- CUERPO PRINCIPAL ---
+# --- CUERPO PRINCIPAL (Sigue igual que la versión anterior) ---
 st.title("📰 Intelligence Hub Editorial")
-st.markdown("Sistema de inteligencia de contenidos con base de datos persistente en la nube.")
+st.markdown("Sistemas de monitorización de tendencias y vigilancia de medios en tiempo real.")
 
 tab1, tab2 = st.tabs(["🌐 Vigilancia de Medios", "🚀 Tendencias en X"])
 
@@ -116,7 +136,7 @@ with tab1:
             with st.spinner('Analizando...'):
                 noticias = obtener_noticias(api_key, keywords_list)
                 if noticias:
-                    st.success(f"Capturadas {len(noticias)} noticias.")
+                    st.success(f"Se han capturado {len(noticias)} artículos.")
                     df = pd.DataFrame(noticias)[['title', 'source', 'publishedAt', 'url']]
                     df.columns = ['Título', 'Fuente', 'Fecha', 'Enlace']
                     
@@ -139,6 +159,7 @@ with tab1:
                             st.markdown("---")
                 else:
                     st.error("No se encontraron noticias.")
+
 
 
 
