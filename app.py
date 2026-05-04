@@ -39,7 +39,7 @@ def obtener_noticias(api_key, keywords):
 
 # Sidebar (Barra lateral)
 st.sidebar.title(" Configuración")
-api_key ="970be6d6772e48ada6ce78006d34e15f"
+api_key = st.secrets["970be6d6772e48ada6ce78006d34e15f"]
 st.sidebar.markdown("---")
 st.sidebar.info("Consigue tu API Key gratis en [newsapi.org](https://newsapi.org/)")
 
