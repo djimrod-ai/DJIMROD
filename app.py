@@ -2,32 +2,22 @@ import streamlit as st
 import requests
 import pandas as pd
 from datetime import datetime
+import gspread
+from google.oauth2.service_account import Credentials
 
 # --- CONFIGURACIÓN DE LA PÁGINA ---
-st.set_page_config(page_title="Intelligence Hub Editorial", page_icon="📰", layout="wide")
+st.set_page_config(page_title="Editorial Intelligence Hub", page_icon="📰", layout="wide")
 
-# --- ESTILOS PERSONALIZADOS ---
-st.markdown("""
-    <style>
-    .main { background-color: #f8f9fa; }
-    .stButton>button { width: 100%; border-radius: 20px; }
-    </style>
-    """, unsafe_allow_html=True)
+# --- CONFIGURACIÓN GOOGLE SHEETS ---
+# Nombre de tu hoja de cálculo exacta
+SHEET_NAME = "Nombre de tu Hoja de Calculo Aqui" 
 
-# --- LIBRERÍA DE SETS (Expandible) ---
-# Aquí puedes añadir cientos de categorías. Al ser un diccionario, es muy eficiente.
-ALL_PRESETS = {
-    " Economía": "Bolsa\nInflación\nBCE\nEuribor\nFiscalidad\nPIB",
-    " Tecnología": "IA\nChatGPT\nNvidia\nSemicondutores\nQuantum Computing\nApple",
-    " Política Nacional": "Elecciones\nGobierno\nSindicatos\nParlamento\nRegiones",
-    " Política Internacional": "ONU\nOTAN\nGeopolítica\nConflictos\nDiplomacia",
-    " Medio Ambiente": "Cambio Climático\nEnergía Solar\nSequía\nReciclaje\nCO2",
-    " Salud": "Pandemias\nVacunas\nSalud Mental\nBiotecnología\nOMS",
-    " Justicia": "Sentencias\nTribunal Supremo\nLeyes\nDerechos Humanos",
-    " Deportes": "Champions\nLaLiga\nOlimpiadas\nFichajes\nTenis",
-    " Cultura": "Museos\nCine\nLiteratura\nTeatro\nFestivales",
-    " Seguridad": "Ciberseguridad\nInteligencia\nDefensa\nPolicía"
-}
+def conectar_google_sheets():
+    # Usamos los secretos de Streamlit para la autenticación
+    scope = ["https://www.googleapis.com/auth/spreadsheets", "https://www.googleapis.com/auth/drive"]
+    creds = Credentials.from_service_account_info(st.secrets["gcp_service_account"], scopes=scope)
+    client = gspread.authorize(creds)
+    return client.open(SHEET_NAME).get_worksheet(0)
 
 # --- LÓGICA DE BÚSQUEDA ---
 def obtener_noticias(api_key, keywords):
@@ -41,73 +31,70 @@ def obtener_noticias(api_key, keywords):
     except Exception:
         return []
 
-# --- SEGURIDAD API KEY ---
+# --- SEGURIDAD ---
 api_key = st.secrets.get("NEWS_API_KEY", None)
 if api_key is None:
-    st.error("❌ Error: API Key no configurada en Secrets.")
+    st.error("❌ Error: API Key de NewsAPI no configurada.")
     st.stop()
 
-# --- GESTIÓN DE ESTADO (Session State) ---
-# Esto permite que la app "recuerde" los sets guardados por el usuario durante la sesión
-if 'user_presets' not in st.session_state:
-    st.session_state['user_presets'] = {}
+# --- GESTIÓN DE SETS (Google Sheets) ---
+try:
+    sheet = conectar_google_sheets()
+    # Leer todos los datos de la hoja
+    data = sheet.get_all_records()
+    # Convertir la lista de diccionarios en un diccionario de {Nombre: Keywords}
+    all_presets = {row['Set Name']: row['Keywords'] for row in data}
+except Exception as e:
+    st.error(f"Error conectando con Google Sheets: {e}")
+    all_presets = {"Error": "No se pudo cargar la base de datos"}
 
 # --- SIDEBAR ---
-st.sidebar.title(" Panel de Control")
+st.sidebar.title("⚙️ Control Hub")
 
-# 1. BUSCADOR DE SETS DINÁMICO
-st.sidebar.subheader(" Buscar Set Temático")
-search_query = st.sidebar.text_input("Escribe el tema (ej. 'Tecno' o 'Polít')")
-
-# Filtrar la librería basándose en la búsqueda
-filtered_presets = {k: v for k, v in ALL_PRESETS.items() if search_query.lower() in k.lower()}
+# 1. BUSCADOR DINÁMICO
+st.sidebar.subheader("🔍 Buscar Set Temático")
+search_query = st.sidebar.text_input("Buscar tema (ej. 'Tecno')")
+filtered_presets = {k: v for k, v in all_presets.items() if search_query.lower() in k.lower()}
 preset_options = list(filtered_presets.keys())
 
 if preset_options:
-    selected_preset = st.sidebar.selectbox("Selecciona un set encontrado", preset_options)
+    selected_preset = st.sidebar.selectbox("Selecciona un set", preset_options)
     if st.sidebar.button("Cargar Set"):
         st.session_state['current_keywords'] = filtered_presets[selected_preset]
 else:
-    st.sidebar.warning("No se encontraron sets con ese nombre.")
+    st.sidebar.warning("No se encontraron sets.")
 
-# 2. GESTIÓN DE PALABRAS CLAVE
+# 2. AJUSTE de TEMAS
 st.sidebar.markdown("---")
-st.sidebar.subheader(" Ajuste de Temas")
-
-# Si hay un set cargado, lo ponemos como valor por defecto
+st.sidebar.subheader("🎯 Ajuste de Temas")
 default_val = st.session_state.get('current_keywords', "Inteligencia Artificial\nEconomía")
 keywords_input = st.sidebar.text_area("Palabras clave (una por línea)", value=default_val)
 keywords_list = [k.strip() for k in keywords_input.split('\n') if k.strip()]
 
-# 3. GUARDADO de SETS PERSONALIZADOS (Súper útil para el usuario)
+# 3. GUARDADO PERMANENTE EN NUBE
 st.sidebar.markdown("---")
-st.sidebar.subheader(" Guardar Set Actual")
-new_set_name = st.sidebar.text_input("Nombre para este grupo")
-if st.sidebar.button("Guardar en mi sesión"):
+st.sidebar.subheader("☁️ Guardar en la Nube")
+new_set_name = st.sidebar.text_input("Nombre del nuevo set")
+if st.sidebar.button("Guardar en Google Sheets"):
     if new_set_name and keywords_input:
-        st.session_state['user_presets'][new_set_name] = keywords_input
-        st.sidebar.success(f"Set '{new_set_name}' guardado!")
-
-# Mostrar sets guardados por el usuario en esta sesión
-if st.session_state['user_presets']:
-    st.sidebar.subheader(" Mis Sets Guardados")
-    for name in st.session_state['user_presets'].keys():
-        if st.sidebar.button(f"Cargar {name}"):
-            st.session_state['current_keywords'] = st.session_state['user_presets'][name]
+        try:
+            # Añadir una fila nueva al final de la hoja
+            sheet.append_row([new_set_name, keywords_input])
+            st.sidebar.success(f"Set '{new_set_name}' guardado en la nube!")
             st.rerun()
+        except Exception as e:
+            st.sidebar.error(f"Error al guardar: {e}")
 
-st.sidebar.markdown("---")
-st.sidebar.caption("v3.0 - Dynamic Intelligence Hub")
+st.sidebar.caption("v5.0 - Enterprise Cloud Hub")
 
 # --- CUERPO PRINCIPAL ---
-st.title(" Intelligence Hub Editorial")
-st.markdown("Sistemas de monitorización de tendencias y vigilancia de medios en tiempo real.")
+st.title("📰 Intelligence Hub Editorial")
+st.markdown("Sistema de inteligencia de contenidos con base de datos persistente en la nube.")
 
-tab1, tab2 = st.tabs([" Vigilancia de Medios", " Tendencias en X"])
+tab1, tab2 = st.tabs(["🌐 Vigilancia de Medios", "🚀 Tendencias en X"])
 
 with tab2:
     st.subheader("Explorador de Redes Sociales")
-    st.write("Acceso instantáneo a la conversación actual en X (Twitter).")
     if keywords_list:
         cols = st.columns(4)
         for idx, word in enumerate(keywords_list):
@@ -115,33 +102,31 @@ with tab2:
             twitter_url = f"https://twitter.com/search?q={word.replace(' ', '%20')}&f=live"
             with col:
                 st.markdown(f"**{word}**")
-                st.markdown(f" [Ver en X ]({twitter_url})")
+                st.markdown(f"🔗 [Ver en X ↗️]({twitter_url})")
                 st.markdown("---")
-    else:
-        st.info("Añade palabras clave en la barra lateral.")
 
 with tab1:
     st.subheader("Análisis de Medios Digitales")
-    num_results = st.slider("Cantidad de noticias a analizar", 5, 50, 20)
+    num_results = st.slider("Cantidad de noticias", 5, 50, 20)
 
-    if st.button(" Ejecutar Rastreo de Noticias"):
+    if st.button("🔍 Ejecutar Rastreo de Noticias"):
         if not keywords_list:
-            st.warning("Introduce al menos una palabra clave.")
+            st.warning("Introduce palabras clave.")
         else:
-            with st.spinner('Analizando fuentes globales...'):
+            with st.spinner('Analizando...'):
                 noticias = obtener_noticias(api_key, keywords_list)
                 if noticias:
-                    st.success(f"Se han capturado {len(noticias)} artículos relevantes.")
+                    st.success(f"Capturadas {len(noticias)} noticias.")
                     df = pd.DataFrame(noticias)[['title', 'source', 'publishedAt', 'url']]
                     df.columns = ['Título', 'Fuente', 'Fecha', 'Enlace']
                     
                     csv = df.to_csv(index=False).encode('utf-8')
-                    st.download_button(" Descargar Reporte en CSV", data=csv, 
+                    st.download_button("📥 Descargar CSV", data=csv, 
                                      file_name=f"reporte_{datetime.now().strftime('%Y%m%d')}.csv", mime='text/csv')
                     
                     st.dataframe(df, use_container_width=True)
                     st.markdown("---")
-                    st.subheader(" Análisis Detallado")
+                    st.subheader("📄 Análisis Detallado")
                     for art in noticias[:num_results]:
                         with st.container():
                             c1, c2 = st.columns([3, 1])
@@ -150,12 +135,11 @@ with tab1:
                                 st.write(f"**{art['source']['name']}** | {art['publishedAt'][:10]}")
                                 st.write(art['description'])
                             with c2:
-                                st.markdown(f"[Leer completo ]({art['url']})")
+                                st.markdown(f"[Leer completo ↗️]({art['url']})")
                             st.markdown("---")
                 else:
-                    st.error("No se encontraron noticias recientes.")
-    else:
-        st.info("Haz clic en 'Ejecutar Rastreo' para obtener los datos actualizados.")
+                    st.error("No se encontraron noticias.")
+
 
 
 
