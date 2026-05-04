@@ -95,3 +95,24 @@ if st.button(" Buscar Tendencias Actuales"):
 
 else:
     st.info("Haz clic en el botón de búsqueda para analizar las tendencias.")
+    st.markdown("---")
+st.subheader(" Acceso rápido a Redes Sociales")
+st.write("Genera enlaces directos para monitorizar tendencias en tiempo real.")
+
+if keywords_list:
+    # Creamos columnas para que se vea bonito
+    cols = st.columns(len(keywords_list) if len(keywords_list) < 5 else 5)
+    
+    for idx, word in enumerate(keywords_list):
+        # Elegimos la columna correspondiente
+        col = cols[idx % len(cols)]
+        
+        # Construimos la URL de búsqueda de Twitter (X)
+        # 'f=live' hace que Twitter muestre los tweets más recientes, no los más populares
+        twitter_url = f"https://twitter.com/search?q={word.replace(' ', '%20')}&f=live"
+        
+        with col:
+            st.markdown(f"**{word}**")
+            st.markdown(f"[Ver en X]({twitter_url})")
+else:
+    st.info("Introduce palabras clave en la barra lateral para generar los enlaces de X.")
