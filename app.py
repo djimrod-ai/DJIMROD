@@ -2,128 +2,91 @@ import streamlit as st
 import requests
 import pandas as pd
 from datetime import datetime
+import feedparser
 
 # --- CONFIGURACIÓN DE LA PÁGINA ---
-st.set_page_config(page_title="Intelligence Hub Editorial Max", page_icon="📰", layout="wide")
+st.set_page_config(page_title="Intelligence Hub Editorial Pro", page_icon="📰", layout="wide")
 
-# --- ESTILOS PERSONALIZADOS ---
+# --- ESTILOS ---
 st.markdown("""
     <style>
     .main { background-color: #f8f9fa; }
     .stButton>button { width: 100%; border-radius: 20px; }
-    .news-card {
-        padding: 15px;
-        border-radius: 10px;
-        background-color: white;
-        border-left: 5px solid #1DA1F2;
-        margin-bottom: 10px;
-        box-shadow: 2px 2px 5px rgba(0,0,0,0.05);
-    }
     </style>
     """, unsafe_allow_html=True)
 
-# --- LIBRERÍA MAESTRA DE TEMAS (Expandida y Optimizada) ---
-all_themes = {
-    # TECNOLOGÍA
-    "🤖 IA: Generativa": "ChatGPT\nClaude\nGemini\nMidjourney\nLLM\nSora\nPrompts",
-    "🤖 IA: Ética y Regulación": "Regulación IA\nDerechos de Autor IA\nSesgos Algorítmicos\nLey de IA UE",
-    "💻 Computación Cuántica": "Quantum Computing\nQubits\nCriptografía Cuántica\nSupercomputadoras",
-    "🌐 Web3 y Blockchain": "Ethereum\nSmart Contracts\nDeFi\nDAO\nWeb3",
-    "🪙 Criptomonedas: Bitcoin": "Bitcoin\nHalving\nSatoshi\nMinería BTC",
-    "🪙 Criptomonedas: Altcoins": "Solana\nCardano\nPolkadot\nStablecoins",
-    "📱 Hardware y Chips": "Nvidia\nTSMC\nApple Silicon\nSemicondutores\nARM",
-    "🚀 Carrera Espacial": "SpaceX\nNASA\nArtemis\nStarlink\nMarte\nJames Webb",
-    "🛡️ Ciberseguridad": "Ransomware\nZero Day\nPhishing\nPentesting\nSoberanía Digital",
-    "🕶️ Metaverso y VR": "Vision Pro\nOculus\nRealidad Aumentada\nVR Gaming",
-
-    # ECONOMÍA
-    "📈 Macroeconomía": "Inflación\nPIB\nRecesión\nBancos Centrales\nDeflación",
-    "🇪🇺 Economía Europea": "BCE\nEuribor\nEurozona\nPolíticas Fiscales UE",
-    "🇺🇸 Economía USA": "FED\nWall Street\nS&P 500\nNasdaq\nDeuda USA",
-    "🛢️ Energía y Materias Primas": "Petróleo\nGas Natural\nLitio\nCobalto\nOro",
-    "🏢 Startups y Venture Capital": "Unicornios\nSaaS\nSeed Funding\nSérie A\nScaleups",
-    "🛒 E-commerce y Retail": "Amazon\nShopify\nLogística\nDropshipping\nOmnicanalidad",
-    "🏦 Fintech": "Neobancos\nPagos Digitales\nOpen Banking\nInsurtech",
-    "🌾 Agroeconomía": "Precios Cereales\nSostenibilidad Agrícola\nFertilizantes",
-
-    # POLÍTICA
-    "🇺🇸 Política Estados Unidos": "Elecciones USA\nCongreso\nCasa Blanca\nDemócratas\nRepublicanos",
-    "🇪🇺 Política Unión Europea": "Parlamento Europeo\nComisión Europea\nTratados UE\nSchengen",
-    "🇪🇸 Política España": "Gobierno España\nCortes Generales\nComunidades Autónomas",
-    "🌏 Geopolítica Asia": "China\nTaiwán\nCorea del Norte\nJapón\nASEAN",
-    "🌍 Geopolítica Medio Oriente": "Israel\nIrán\nArabia Saudí\nConflicto Gaza\nPetrodólares",
-    "🇷🇺 Geopolítica Rusia": "Rusia\nUcrania\nOTAN\nSanciones Económicas",
-    "🇺🇳 Organismos Internacionales": "ONU\nFMI\nBanco Mundial\nOMS\nInterpol",
-    "⚖️ Derechos Humanos": "Amnistía Internacional\nLibertad de Expresión\nRefugiados",
-
-    # CIENCIA Y SALUD
-    "🧬 Genética y Biotecnología": "CRISPR\nEdición Genética\nClonación\nSintéticos",
-    "🧠 Neurociencia": "Cerebro\nSinapsis\nInterfaz Cerebro-Computadora\nNeuralink",
-    "💊 Farmacéutica": "Vacunas\nAntisense\nEnsayos Clínicos\nFDA",
-    "🏥 Salud Mental": "Ansiedad\nDepresión\nBurnout\nPsicología Moderna",
-    "🦠 Epidemiología": "Virus\nZoonosis\nSistemas de Vigilancia Sanitaria",
-    "🔭 Astrofísica": "Agujeros Negros\nExoplanetas\nMateria Oscura\nBig Bang",
-
-    # MEDIO AMBIENTE
-    "🌡️ Cambio Climático": "Calentamiento Global\nAcuerdo de París\nCOP28\nEmisiones CO2",
-    "☀️ Energías Renovables": "Hidrógeno Verde\nSolar\nEólica\nFusión Nuclear",
-    "🌊 Oceanografía": "Acidificación Océanos\nCorales\nPlásticos Marinos",
-    "🌲 Biodiversidad": "Deforestación\nEspecies en Peligro\nRewilding",
-
-    # DEPORTES Y CULTURA
-    "⚽ Fútbol": "Champions League\nLaLiga\nPremier League\nFichajes\nMundial",
-    "🏎️ Motor": "Fórmula 1\nFerrari\nRed Bull\nMotoGP",
-    "🎾 Tenis y Otros": "ATP\nWTA\nOlimpiadas\nNBA\nNFL",
-    "🎬 Cine y Streaming": "Netflix\nOscars\nDisney+\nBox Office\nCine Independiente",
-    "🎮 Gaming": "PlayStation\nXbox\nNintendo\nSteam\nE-sports",
-    "🎨 Arte y Literatura": "Museos\nNovela Gráfica\nSaaS Art\nSotheby's",
+# --- LIBRERÍA de RSS (Toda la inmediatez aquí) ---
+RSS_FEEDS = {
+    "El País": "https://www.elpais.com/rss/0/latest.xml",
+    "El Mundo": "https://www.elmundo.es/rss/estC1.xml",
+    "ABC": "https://www.abc.es/rss/noticias.xml",
+    "RTVE": "https://www.rtve.es/rss/todas-las-noticias.rss",
+    "BBC Mundo": "https://www.bbc.com/mundo/index.xml",
+    "EFE": "https://www.efe.com/rss/estatico/todas.xml"
 }
 
-# --- LÓGICA DE BÚSQUEDA CON FILTRO DE FECHA ---
-def obtener_noticias(api_key, keywords):
-    # 1. Forzamos la fecha de hoy para evitar noticias viejas
-    today = datetime.now().strftime('%Y-%m-%d')
+# --- LIBRERÍA MAESTRA DE TEMAS ---
+all_themes = {
+    "🤖 IA: Generativa": "ChatGPT\nClaude\nGemini\nMidjourney\nLLM\nSora\nPrompts",
+    "🤖 IA: Ética": "Regulación IA\nDerechos de Autor IA\nSesgos Algorítmicos\nLey de IA UE",
+    "🪙 Criptomonedas": "Bitcoin\nEthereum\nSolana\nHalving\nStablecoins",
+    "📈 Macroeconomía": "Inflación\nPIB\nRecesión\nBCE\nEuribor",
+    "🇺🇸 Política USA": "Elecciones USA\nTrump\nBiden\nCongreso",
+    "🇪🇸 Política España": "Gobierno España\nSánchez\nCortes Generales",
+    "🌍 Geopolítica": "Rusia\nUcrania\nChina\nOTAN\nIsrael\nGaza",
+    "🌱 Medio Ambiente": "Cambio Climático\nEnergía Solar\nCOP28\nCO2",
+    "⚽ Deportes": "Champions\nLaLiga\nFichajes\nF1\nTenis",
+    "🎮 Gaming y Tech": "PlayStation\nXbox\nNvidia\nApple\nGaming",
+}
+
+# --- LÓGICA DE BÚSQUEDA 1: NewsAPI (Búsqueda Global) ---
+def obtener_noticias_api(api_key, keywords):
     query = ' OR '.join(keywords)
-    
-    # URL con parámetro 'from' para filtrar solo lo de hoy
+    today = datetime.now().strftime('%Y-%m-%d')
     url = f"https://newsapi.org/v2/everything?q={query}&language=es&sortBy=publishedAt&from={today}&apiKey={api_key}"
     
     try:
-        response = requests.get(url)
-        if response.status_code == 200:
-            return response.json().get('articles', [])
-        elif response.status_code == 400:
-            # Si no hay noticias estrictamente hoy, intentamos el fallback (últimas 24h)
-            return obtener_noticias_recientes(api_key, keywords)
-        else:
-            st.error(f"Error API: {response.status_code}")
-            return []
-    except Exception:
-        return []
+        res = requests.get(url)
+        if res.status_code == 200:
+            art = res.json().get('articles', [])
+            if art: return art, "Hoy (API)"
+        
+        # Fallback a 48h
+        from_date = (datetime.now() - pd.Timedelta(days=2)).strftime('%Y-%m-%d')
+        url_rec = f"https://newsapi.org/v2/everything?q={query}&language=es&sortBy=publishedAt&from={from_date}&apiKey={api_key}"
+        res_rec = requests.get(url_rec)
+        if res_rec.status_code == 200:
+            return res_rec.json().get('articles', []), "Últimas 48h (API)"
+    except: pass
+    return [], "Sin resultados"
 
-def obtener_noticias_recientes(api_key, keywords):
-    """Función de respaldo para cuando no hay noticias estrictamente hoy"""
-    query = ' OR '.join(keywords)
-    url = f"https://newsapi.org/v2/everything?q={query}&language=es&sortBy=publishedAt&apiKey={api_key}"
-    try:
-        response = requests.get(url)
-        return response.json().get('articles', []) if response.status_code == 200 else []
-    except Exception:
-        return []
+# --- LÓGICA DE BÚSQUEDA 2: RSS (Tiempo Real) ---
+def obtener_noticias_rss(keywords):
+    noticias_reales = []
+    for medio, url in RSS_FEEDS.items():
+        try:
+            feed = feedparser.parse(url)
+            for entry in feed.entries:
+                if any(word.lower() in entry.title.lower() or word.lower() in entry.summary.lower() for word in keywords):
+                    noticias_reales.append({
+                        'title': entry.title,
+                        'url': entry.link,
+                        'source': medio,
+                        'publishedAt': entry.published if hasattr(entry, 'published') else "Reciente",
+                        'description': entry.summary if hasattr(entry, 'summary') else ""
+                    })
+        except: pass
+    return noticias_reales, "Tiempo Real (RSS)"
 
 # --- SEGURIDAD ---
 api_key = st.secrets.get("NEWS_API_KEY", None)
 if api_key is None:
-    st.error("❌ Error: API Key no configurada en Secrets.")
+    st.error("❌ API Key no configurada.")
     st.stop()
 
 # --- SIDEBAR ---
 st.sidebar.title("⚙️ Control Hub")
-
-# BUSCADOR DINÁMICO
-st.sidebar.subheader("🔍 Buscador de Temas")
-search_query = st.sidebar.text_input("Escribe el tema (ej. 'IA', 'Bolsa')")
-
+search_query = st.sidebar.text_input("🔍 Buscar tema (ej. 'IA')")
 filtered_presets = {k: v for k, v in all_themes.items() if search_query.lower() in k.lower()}
 preset_options = list(filtered_presets.keys())
 
@@ -135,16 +98,13 @@ else:
     st.sidebar.warning("No hay sets que coincidan.")
 
 st.sidebar.markdown("---")
-st.sidebar.subheader("🎯 Ajuste Manual")
 default_val = st.session_state.get('current_keywords', "Inteligencia Artificial\nEconomía")
-keywords_input = st.sidebar.text_area("Palabras clave", value=default_val)
+keywords_input = st.sidebar.text_area("Ajuste de palabras clave", value=default_val)
 keywords_list = [k.strip() for k in keywords_input.split('\n') if k.strip()]
-
-st.sidebar.caption("v6.5 - Real-Time Intelligence Hub")
 
 # --- CUERPO PRINCIPAL ---
 st.title("📰 Intelligence Hub Editorial")
-st.markdown("Vigilancia de medios y tendencias en tiempo real con filtrado de fecha actual.")
+st.markdown("Vigilancia de medios híbrida: Global (API) + Instantánea (RSS).")
 
 tab1, tab2 = st.tabs(["🌐 Vigilancia de Medios", "🚀 Tendencias en X"])
 
@@ -159,27 +119,33 @@ with tab2:
                 st.markdown(f"**{word}**")
                 st.markdown(f"🔗 [Ver en X ↗️]({twitter_url})")
                 st.markdown("---")
-    else:
-        st.info("Añade palabras clave en la barra lateral.")
 
 with tab1:
-    st.subheader("Análisis de Medios Digitales")
-    num_results = st.slider("Cantidad de noticias a mostrar", 5, 50, 20)
+    st.subheader("Buscador de Noticias")
+    
+    # Selector de modo de búsqueda
+    modo = st.radio("Selecciona la fuente de datos:", ["Global (NewsAPI)", "Instantánea (RSS Feeds)"], horizontal=True)
+    
+    num_results = st.slider("Cantidad de noticias", 5, 50, 20)
 
-    if st.button("🔍 Ejecutar Rastreo Actualizado"):
+    if st.button("🔍 Ejecutar Rastreo"):
         if not keywords_list:
             st.warning("Introduce palabras clave.")
         else:
-            with st.spinner('Analizando noticias de hoy...'):
-                noticias = obtener_noticias(api_key, keywords_list)
+            with st.spinner('Buscando la información más reciente...'):
+                if modo == "Global (NewsAPI)":
+                    noticias, periodo = obtener_noticias_api(api_key, keywords_list)
+                else:
+                    noticias, periodo = obtener_noticias_rss(keywords_list)
+                
                 if noticias:
-                    st.success(f"Se han capturado {len(noticias)} noticias recientes.")
+                    st.success(f"Capturadas {len(noticias)} noticias. Periodo: {periodo}")
                     df = pd.DataFrame(noticias)[['title', 'source', 'publishedAt', 'url']]
                     df.columns = ['Título', 'Fuente', 'Fecha', 'Enlace']
                     
                     csv = df.to_csv(index=False).encode('utf-8')
-                    st.download_button("📥 Descargar Reporte CSV", data=csv, 
-                                     file_name=f"tendencias_{datetime.now().strftime('%Y%m%d')}.csv", mime='text/csv')
+                    st.download_button("📥 Descargar CSV", data=csv, 
+                                     file_name=f"reporte_{datetime.now().strftime('%Y%m%d')}.csv", mime='text/csv')
                     
                     st.dataframe(df, use_container_width=True)
                     st.markdown("---")
@@ -189,13 +155,13 @@ with tab1:
                             c1, c2 = st.columns([3, 1])
                             with c1:
                                 st.markdown(f"### [{art['title']}]({art['url']})")
-                                st.write(f"**{art['source']['name']}** | {art['publishedAt'][:10]}")
+                                st.write(f"**{art['source']}** | {art['publishedAt']}")
                                 st.write(art['description'])
                             with c2:
                                 st.markdown(f"[Leer completo ↗️]({art['url']})")
                             st.markdown("---")
                 else:
-                    st.error("No se encontraron noticias publicadas hoy para estos temas.")
+                    st.error("No se han encontrado noticias recientes para estos temas.")
 
 
 
