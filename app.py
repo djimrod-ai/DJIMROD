@@ -15,7 +15,7 @@ st.markdown("""
     </style>
     """, unsafe_allow_html=True)
 
-# --- LIBRERÍA de RSS (URLs actualizadas) ---
+# --- LIBRERÍA de RSS ---
 RSS_FEEDS = {
     "El País": "https://www.elpais.com/rss/0/latest.xml",
     "El Mundo": "https://www.elmundo.es/rss/estC1.xml",
@@ -29,7 +29,7 @@ all_themes = {
     "🤖 IA: Generativa": "ChatGPT\nClaude\nGemini\nMidjourney\nLLM\nSora\nPrompts",
     "🤖 IA: Ética": "Regulación IA\nDerechos de Autor IA\nSesgos Algorítmicos\nLey de IA UE",
     "🪙 Criptomonedas": "Bitcoin\nEthereum\nSolana\nHalving\nStablecoins",
-    "📈 Macroeconomía": "Inflación\nPIB\nRecesión\nBCE\nEuribor",
+    "📈 Macro la Economía": "Inflación\nPIB\nRecesión\nBCE\nEuribor",
     "🇺🇸 Política USA": "Elecciones USA\nTrump\nBiden\nCongreso",
     "🇪🇸 Política España": "Gobierno España\nSánchez\nCortes Generales",
     "🌍 Geopolítica": "Rusia\nUcrania\nChina\nOTAN\nIsrael\nGaza",
@@ -52,21 +52,16 @@ def obtener_noticias_api(api_key, keywords):
         return [], f"Error API {res.status_code}"
     except: return [], "Error de conexión"
 
-# --- LÓGICA de BÚSQUEDA RSS (SISTEMA MANUAL SIN LIBRERÍAS EXTERNAS) ---
+# --- LÓGICA de BÚSQUEDA RSS (SIN LIBRERÍAS EXTERNAS) ---
 def obtener_noticias_rss(keywords):
-    """Lee XML de RSS usando la librería estándar de Python (Cero errores de importación)"""
     noticias_coincidentes = []
     todas_las_recientes = []
     
     for medio, url in RSS_FEEDS.items():
         try:
-            # Hacemos la petición manual al XML
             response = requests.get(url, timeout=10)
             if response.status_code == 200:
-                # Parseamos la estructura XML
                 root = ET.fromstring(response.content)
-                
-                # Los RSS tienen los artículos en etiquetas <item>
                 for item in root.findall('.//item'):
                     title = item.find('title').text if item.find('title') is not None else "Sin título"
                     link = item.find('link').text if item.find('link') is not None else "#"
@@ -81,12 +76,9 @@ def obtener_noticias_rss(keywords):
                         'description': desc
                     }
                     todas_las_recientes.append(noticia)
-                    
-                    # Filtramos por keywords
                     if any(word.lower() in title.lower() or word.lower() in desc.lower() for word in keywords):
                         noticias_coincidentes.append(noticia)
-        except Exception as e:
-            print(f"Error leyendo {medio}: {e}")
+        except: pass
     
     if noticias_coincidentes:
         return noticias_coincidentes, "Tiempo Real (Coincidencias)"
@@ -103,7 +95,7 @@ if api_key is None:
 
 # --- SIDEBAR ---
 st.sidebar.title("⚙️ Control Hub")
-st.sidebar.success("✅ Sistema de Inmediatez: ACTIVO") # Ahora es verdad, no depende de librerías
+st.sidebar.success("✅ Sistema de Inmediatez: ACTIVO")
 
 st.sidebar.markdown("---")
 search_query = st.sidebar.text_input("🔍 Buscar tema")
@@ -153,7 +145,8 @@ with tab1:
             st.warning("Introduce palabras clave.")
         else:
             with st.spinner('Buscando la información más reciente...'):
-                if modo == la_modo := "Global (NewsAPI)":
+                # CORRECCIÓN AQUÍ: Comparación simple y correcta
+                if modo == "Global (NewsAPI)":
                     noticias, periodo = obtener_noticias_api(api_key, keywords_list)
                 else:
                     noticias, periodo = obtener_noticias_rss(keywords_list)
