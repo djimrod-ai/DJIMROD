@@ -15,13 +15,9 @@ st.markdown("""
     </style>
     """, unsafe_allow_html=True)
 
-# --- LÓGICA de GOOGLE NEWS RSS (Súper Buscador Global) ---
+# --- LÓGICA de GOOGLE NEWS RSS (Buscador Global) ---
 def obtener_noticias_google(keywords):
-    """Busca en todo el índice de Google News basándose en las keywords"""
     todas_las_noticias = []
-    
-    # Unimos las keywords para hacer una búsqueda potente en Google
-    # Ejemplo: "IA OR ChatGPT OR Sora"
     query = ' OR '.join(keywords).replace(' ', '+')
     url = f"https://news.google.com/rss/search?q={query}&hl=es-ES&gl=ES&ceid=ES:es"
     
@@ -29,7 +25,6 @@ def obtener_noticias_google(keywords):
         headers = {'User-Agent': 'Mozilla/5.0'}
         response = requests.get(url, headers=headers, timeout=10)
         if response.status_code == 200:
-            # Google News usa un formato XML estándar
             root = ET.fromstring(response.content)
             for item in root.findall('.//item'):
                 title = item.find('title').text if item.find('title') is not None else "Sin título"
@@ -37,27 +32,25 @@ def obtener_noticias_google(keywords):
                 date = item.find('pubDate').text if item.find('pubDate') is not None else "Reciente"
                 desc = item.find('description').text if item.find('description') is not None else "Sin descripción"
                 
-                # Google News pone la fuente al final del título: "Título de la noticia - El País"
-                source = " la web"
+                source = "la web"
                 if " - " in title:
                     parts = title.split(" - ")
                     source = parts[-1]
                     title = " - ".join(parts[:-1])
 
-                noticias_finales = {
+                todas_las_noticias.append({
                     'title': title,
                     'url': link,
                     'source': source,
                     'publishedAt': date,
                     'description': desc
-                }
-                todas_las_noticias.append(noticias_finales)
+                })
     except Exception as e:
         st.error(f"Error conectando con Google News: {e}")
         
     return todas_las_noticias
 
-# --- LÓGICA NewsAPI (Para contraste global) ---
+# --- LÓGICA NewsAPI ---
 def obtener_noticias_api(api_key, keywords):
     query = ' OR '.join(keywords)
     today = datetime.now().strftime('%Y-%m-%d')
@@ -80,7 +73,7 @@ if api_key is None:
 all_themes = {
     "🤖 IA: Generativa": "ChatGPT\nClaude\nGemini\nMidjourney\nLLM\nSora\nPrompts\nInteligencia Artificial",
     "🪙 Criptomonedas": "Bitcoin\nEthereum\nSolana\nHalving\nStablecoins\nCripto",
-    "📈 Macroeconomía": "Inflsación\nPIB\nRecesión\nBCE\nEuribor\nEconomía\nBolsa",
+    "📈 Macroeconomía": "Inflación\nPIB\nRecesión\nBCE\nEuribor\nEconomía\nBolsa",
     "🌍 Geopolítica": "Rusia\nUcrania\nChina\nOTAN\nIsrael\nGaza\nConflictos",
     "🌱 Medio Ambiente": "Cambio Climático\nEnergía Solar\nCOP28\nCO2\nSostenibilidad",
     "⚽ Deportes": "Champions\nLaLiga\nFichajes\nF1\nTenis\nDeportes",
@@ -131,7 +124,8 @@ with tab1:
                     ["Google News (Súper Búsqueda)", "Global (NewsAPI)"], 
                     index=0, horizontal=True)
     
-    num_results = st.slider("Cantidad de noticias", 5, 50, 20)
+    # El slider ahora controla la cantidad de datos procesados
+    num_results = st.slider("Cantidad de noticias a mostrar", 5, 100, 20)
 
     if st.button("🔍 Ejecutar Rastreo"):
         if not keywords_list:
@@ -139,22 +133,31 @@ with tab1:
         else:
             with st.spinner('Buscando en toda la web...'):
                 if modo == "Global (NewsAPI)":
-                    noticias, periodo = obtener_noticias_api(api_key, keywords_list)
+                    noticias_full, periodo = obtener_noticias_api(api_key, keywords_list)
                 else:
-                    noticias = obtener_noticias_google(keywords_list)
+                    noticias_full = obtener_noticias_google(keywords_list)
                     periodo = "Google News (Toda la Web)"
                 
-                if noticias:
-                    st.success(f"Resultado: {periodo}")
+                if noticias_full:
+                    # --- CORRECCIÓN CLAVE: Limitamos la lista ANTES de crear el DataFrame ---
+                    noticias = noticias_full[:num_results]
+                    
+                    st.success(f"Resultado: {periodo} ({len(noticias)} noticias mostradas)")
+                    
+                    # Ahora el DataFrame solo tiene el número de noticias del slider
                     df = pd.DataFrame(noticias)[['title', 'source', 'publishedAt', 'url']]
                     df.columns = ['Título', 'Fuente', 'Fecha', 'Enlace']
+                    
                     csv = df.to_csv(index=False).encode('utf-8')
                     st.download_button("📥 Descargar CSV", data=csv, 
                                      file_name=f"tendencias_{datetime.now().strftime('%Y%m%d')}.csv", mime='text/csv')
+                    
                     st.dataframe(df, use_container_width=True)
                     st.markdown("---")
                     st.subheader("📄 Análisis Detallado")
-                    for art in noticias[:num_results]:
+                    
+                    # El bucle ya usa la lista limitada
+                    for art in noticias:
                         with st.container():
                             st.markdown(f"### [{art['title']}]({art['url']})")
                             st.write(f"**{art['source']}** | {art['publishedAt']}")
