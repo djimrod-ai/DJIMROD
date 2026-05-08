@@ -13,9 +13,6 @@ import streamlit as st
 import requests
 import pandas as pd
 from datetime import datetime
-import feedparser # <--- Esto es lo que dará error si el requirements.txt no funciona
-
-# ... el resto del código sigue igual ...
 
 
 # --- CONFIGURACIÓN DE LA PÁGINA ---
