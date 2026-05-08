@@ -12,8 +12,6 @@ st.markdown("""
     <style>
     .main { background-color: #f8f9fa; }
     .stButton>button { width: 100%; border-radius: 20px; font-weight: bold; }
-    .match-label { color: #28a745; font-weight: bold; }
-    .general-label { color: #6c757d; font-style: italic; }
     </style>
     """, unsafe_allow_html=True)
 
@@ -85,10 +83,10 @@ def obtener_noticias_rss(keywords):
         except: pass
     
     # Ordenar: Primero los Matches, luego la actualidad general
-    noticias_finales.sort(key=lambda x: x['tipo'], reverse=True) # "⭐ MATCH" viene antes que "🕒 ACTUALIDAD"
+    noticias_finales.sort(key=lambda x: x['tipo'], reverse=True)
     
     if noticias_finales:
-        return noticias_final_list := noticias_finales, "Tiempo Real (Híbrido)"
+        return noticias_finales, "Tiempo Real (Híbrido)"
     return [], "No se pudo conectar con los feeds"
 
 # --- SEGURIDAD ---
@@ -165,15 +163,13 @@ with tab1:
                     st.subheader("📄 Análisis Detallado")
                     for art in noticias[:num_results]:
                         with st.container():
-                            # Mostramos la etiqueta de MATCH o ACTUALIDAD
                             tipo = art.get('tipo', 'API')
-                            label_color = "green" if "MATCH" in tipo else "gray"
-                            st.markdown(f"**{tipo}**") # Etiqueta visual
-                            
+                            st.markdown(f"**{tipo}**")
                             st.markdown(f"### [{art['title']}]({art['url']})")
                             st.write(f"**{art['source']}** | {art['publishedAt']}")
                             st.write(art['description'])
                             st.markdown("---")
                 else:
                     st.error(f"No se han encontrado noticias hoy mediante {modo}.")
+
 
