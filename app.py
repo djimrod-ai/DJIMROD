@@ -12,6 +12,8 @@ st.markdown("""
     <style>
     .main { background-color: #f8f9fa; }
     .stButton>button { width: 100%; border-radius: 20px; font-weight: bold; }
+    .match-label { color: #28a745; font-weight: bold; }
+    .general-label { color: #6c757d; font-style: italic; }
     </style>
     """, unsafe_allow_html=True)
 
@@ -27,13 +29,13 @@ RSS_FEEDS = {
 
 # --- LIBRERÍA MAESTRA de TEMAS ---
 all_themes = {
-    "🤖 IA: Generativa": "ChatGPT\nClaude\nGemini\nMidjourney\nLLM\nSora\nPrompts",
-    "🪙 Criptomonedas": "Bitcoin\nEthereum\nSolana\nHalving\nStablecoins",
-    "📈 Macroeconomía": "Inflación\nPIB\nRecesión\nBCE\nEuribor",
-    "🌍 Geopolítica": "Rusia\nUcrania\nChina\nOTAN\nIsrael\nGaza",
-    "🌱 Medio Ambiente": "Cambio Climático\nEnergía Solar\nCOP28\nCO2",
-    "⚽ Deportes": "Champions\nLaLiga\nFichajes\nF1\nTenis",
-    "🎮 Gaming y Tech": "PlayStation\nXbox\nNintendo\nSteam\nE-sports",
+    "🤖 IA: Generativa": "ChatGPT\nClaude\nGemini\nMidjourney\nLLM\nSora\nPrompts\nInteligencia Artificial",
+    "🪙 Criptomonedas": "Bitcoin\nEthereum\nSolana\nHalving\nStablecoins\nCripto",
+    "📈 Macroeconomía": "Inflación\nPIB\nRecesión\nBCE\nEuribor\nEconomía\nBolsa",
+    "🌍 Geopolítica": "Rusia\nUcrania\nChina\nOTAN\nIsrael\nGaza\nConflictos",
+    "🌱 Medio Ambiente": "Cambio Climático\nEnergía Solar\nCOP28\nCO2\nSostenibilidad",
+    "⚽ Deportes": "Champions\nLaLiga\nFichajes\nF1\nTenis\nDeportes",
+    "🎮 Gaming y Tech": "PlayStation\nXbox\nNintendo\nSteam\nE-sports\nTecnología",
 }
 
 # --- LÓGICA NewsAPI ---
@@ -49,14 +51,16 @@ def obtener_noticias_api(api_key, keywords):
         return [], f"Error API {res.status_code}"
     except: return [], "Error de conexión"
 
-# --- LÓGICA RSS (HÍBRIDA: COINCIDENCIAS + ACTUALIDAD) ---
+# --- LÓGICA RSS (HÍBRIDA CON ETIQUETAS) ---
 def obtener_noticias_rss(keywords):
-    noticias_estrellas = [] # Coincidencias exactas
-    noticias_generales = []   # Todo lo demás
+    noticias_finales = []
+    
+    # Cabecera para evitar bloqueos (User-Agent)
+    headers = {'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 SafariP537.36'}
     
     for medio, url in RSS_FEEDS.items():
         try:
-            response = requests.get(url, timeout=10)
+            response = requests.get(url, headers=headers, timeout=10)
             if response.status_code == 200:
                 root = ET.fromstring(response.content)
                 for item in root.findall('.//item'):
@@ -65,25 +69,27 @@ def obtener_noticias_rss(keywords):
                     desc = item.find('description').text if item.find('description') is not None else ""
                     date = item.find('pubDate').text if item.find('pubDate') is not None else "Reciente"
                     
-                    noticia = {'title': title, 'url': link, 'source': medio, 'publishedAt': date, 'description': desc}
+                    # Determinar si es coincidencia o general
+                    es_match = any(word.lower() in title.lower() or word.lower() in desc.lower() for word in keywords)
+                    tipo = "⭐ MATCH" if es_match else "🕒 ACTUALIDAD"
                     
-                    # Si coincide con la palabra clave, va a la lista de prioridad (estrellas)
-                    if any(word.lower() in title.lower() or word.lower() in desc.lower() for word in keywords):
-                        noticias_estrellas.append(noticia)
-                    else:
-                        # Si no coincide, va a la lista de actualidad general
-                        noticias_generales.append(noticia)
+                    noticia = {
+                        'title': title,
+                        'url': link,
+                        'source': medio,
+                        'publishedAt': date,
+                        'description': desc,
+                        'tipo': tipo
+                    }
+                    noticias_finales.append(noticia)
         except: pass
     
-    # COMBINAMOS: Primero las estrellas, luego la actualidad general para rellenar
-    final_list = noticias_estrellas + noticias_generales
+    # Ordenar: Primero los Matches, luego la actualidad general
+    noticias_finales.sort(key=lambda x: x['tipo'], reverse=True) # "⭐ MATCH" viene antes que "🕒 ACTUALIDAD"
     
-    if noticias_estrellas:
-        return final_list, f"Híbrido: {len(noticias_estrellas)} coincidencias + Actualidad"
-    elif noticias_generales:
-        return noticias_generales, "Modo Radar (Actualidad General)"
-    else:
-        return [], "No se pudo conectar con los feeds"
+    if noticias_finales:
+        return noticias_final_list := noticias_finales, "Tiempo Real (Híbrido)"
+    return [], "No se pudo conectar con los feeds"
 
 # --- SEGURIDAD ---
 api_key = st.secrets.get("NEWS_API_KEY", None)
@@ -159,9 +165,15 @@ with tab1:
                     st.subheader("📄 Análisis Detallado")
                     for art in noticias[:num_results]:
                         with st.container():
+                            # Mostramos la etiqueta de MATCH o ACTUALIDAD
+                            tipo = art.get('tipo', 'API')
+                            label_color = "green" if "MATCH" in tipo else "gray"
+                            st.markdown(f"**{tipo}**") # Etiqueta visual
+                            
                             st.markdown(f"### [{art['title']}]({art['url']})")
                             st.write(f"**{art['source']}** | {art['publishedAt']}")
                             st.write(art['description'])
                             st.markdown("---")
                 else:
                     st.error(f"No se han encontrado noticias hoy mediante {modo}.")
+
