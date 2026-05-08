@@ -2,16 +2,10 @@ import streamlit as st
 import requests
 import pandas as pd
 from datetime import datetime
-
-# --- SISTEMA DE IMPORTACIÓN CON DIAGNÓSTICO ---
-try:
-    import feedparser
-    RSS_AVAILABLE = True
-except ImportError:
-    RSS_AVAILABLE = False
+import xml.etree.ElementTree as ET # Librería estándar (SÍEMPRE disponible)
 
 # --- CONFIGURACIÓN DE LA PÁGINA ---
-st.set_page_config(page_title="Intelligence Hub Pro: Diagnóstico", page_icon="📰", layout="wide")
+st.set_page_config(page_title="Intelligence Hub Pro: Final Edition", page_icon="📰", layout="wide")
 
 # --- ESTILOS ---
 st.markdown("""
@@ -33,14 +27,18 @@ RSS_FEEDS = {
 # --- LIBRERÍA MAESTRA de TEMAS ---
 all_themes = {
     "🤖 IA: Generativa": "ChatGPT\nClaude\nGemini\nMidjourney\nLLM\nSora\nPrompts",
+    "🤖 IA: Ética": "Regulación IA\nDerechos de Autor IA\nSesgos Algorítmicos\nLey de IA UE",
     "🪙 Criptomonedas": "Bitcoin\nEthereum\nSolana\nHalving\nStablecoins",
     "📈 Macroeconomía": "Inflación\nPIB\nRecesión\nBCE\nEuribor",
+    "🇺🇸 Política USA": "Elecciones USA\nTrump\nBiden\nCongreso",
+    "🇪🇸 Política España": "Gobierno España\nSánchez\nCortes Generales",
     "🌍 Geopolítica": "Rusia\nUcrania\nChina\nOTAN\nIsrael\nGaza",
+    "🌱 Medio Ambiente": "Cambio Climático\nEnergía Solar\nCOP28\nCO2",
     "⚽ Deportes": "Champions\nLaLiga\nFichajes\nF1\nTenis",
-    "🎮 Gaming y Tech": "PlayStation\nXbox\nNvidia\nApple\nGaming",
+    "🎮 Gaming y Tech": "PlayStation\nXbox\nNintendo\nSteam\nE-sports",
 }
 
-# --- LÓGICA NewsAPI ---
+# --- LÓGICA de BÚSQUEDA GLOBAL (ESTRICTAMENTE HOY) ---
 def obtener_noticias_api(api_key, keywords):
     query = ' OR '.join(keywords)
     today = datetime.now().strftime('%Y-%m-%d')
@@ -50,64 +48,62 @@ def obtener_noticias_api(api_key, keywords):
         if res.status_code == 200:
             art = res.json().get('articles', [])
             if art: return art, "Publicadas HOY (API)"
-            return [], "Sin noticias hoy en API"
+            return [], "Sin noticias indexadas HOY"
         return [], f"Error API {res.status_code}"
     except: return [], "Error de conexión"
 
-# --- LÓGICA RSS CON DIAGNÓSTICO ---
+# --- LÓGICA de BÚSQUEDA RSS (SISTEMA MANUAL SIN LIBRERÍAS EXTERNAS) ---
 def obtener_noticias_rss(keywords):
-    if not RSS_AVAILABLE:
-        return [], "ERROR: Librería feedparser NO instalada"
-        
+    """Lee XML de RSS usando la librería estándar de Python (Cero errores de importación)"""
     noticias_coincidentes = []
-    todas_las_recientes = [] 
-    feeds_fallidos = 0
+    todas_las_recientes = []
     
     for medio, url in RSS_FEEDS.items():
         try:
-            # Añadimos un 'User-Agent' para que el periódico no crea que somos un bot malicioso
-            feed = feedparser.parse(url)
-            if not feed.entries:
-                feeds_fallidos += 1
-                continue
+            # Hacemos la petición manual al XML
+            response = requests.get(url, timeout=10)
+            if response.status_code == 200:
+                # Parseamos la estructura XML
+                root = ET.fromstring(response.content)
                 
-            for entry in feed.entries:
-                noticia = {
-                    'title': entry.title,
-                    'url': entry.link,
-                    'source': medio,
-                    'publishedAt': entry.published if hasattr(entry, 'published') else "Reciente",
-                    'description': entry.summary if hasattr(entry, 'summary') else ""
-                }
-                todas_las_recientes.append(noticia)
-                if any(word.lower() in entry.title.lower() or word.lower() in entry.summary.lower() for word in keywords):
-                    noticias_coincidentes.append(noticia)
-        except:
-            feeds_fallidos += 1
+                # Los RSS tienen los artículos en etiquetas <item>
+                for item in root.findall('.//item'):
+                    title = item.find('title').text if item.find('title') is not None else "Sin título"
+                    link = item.find('link').text if item.find('link') is not None else "#"
+                    desc = item.find('description').text if item.find('description') is not None else ""
+                    date = item.find('pubDate').text if item.find('pubDate') is not None else "Reciente"
+                    
+                    noticia = {
+                        'title': title,
+                        'url': link,
+                        'source': medio,
+                        'publishedAt': date,
+                        'description': desc
+                    }
+                    todas_las_recientes.append(noticia)
+                    
+                    # Filtramos por keywords
+                    if any(word.lower() in title.lower() or word.lower() in desc.lower() for word in keywords):
+                        noticias_coincidentes.append(noticia)
+        except Exception as e:
+            print(f"Error leyendo {medio}: {e}")
     
-    if feeds_fallidos == len(RSS_FEEDS):
-        return [], "ERROR: Todos los periódicos bloquearon la conexión"
-
     if noticias_coincidentes:
         return noticias_coincidentes, "Tiempo Real (Coincidencias)"
-    else:
+    elif todas_las_recientes:
         return todas_las_recientes[:20], "Modo Radar (Últimas generales)"
+    else:
+        return [], "No se pudo conectar con los feeds RSS"
 
 # --- SEGURIDAD ---
 api_key = st.secrets.get("NEWS_API_KEY", None)
 if api_key is None:
-    st.error("❌ Error: API Key de NewsAPI no configurada en Secrets.")
+    st.error("❌ Error: API Key no configurada en Secrets.")
     st.stop()
 
 # --- SIDEBAR ---
 st.sidebar.title("⚙️ Control Hub")
-
-# CHEQUEO DE SALUD (Diagnóstico en vivo)
-st.sidebar.subheader("🩺 Estado del Sistema")
-if RSS_AVAILABLE:
-    st.sidebar.success("✅ Motor RSS: Activo")
-else:
-    st.sidebar.error("❌ Motor RSS: Desactivado (Falta librería)")
+st.sidebar.success("✅ Sistema de Inmediatez: ACTIVO") # Ahora es verdad, no depende de librerías
 
 st.sidebar.markdown("---")
 search_query = st.sidebar.text_input("🔍 Buscar tema")
@@ -128,7 +124,7 @@ keywords_list = [k.strip() for k in keywords_input.split('\n') if k.strip()]
 
 # --- CUERPO PRINCIPAL ---
 st.title("📰 Intelligence Hub Editorial")
-st.markdown("Vigilancia de medios: **Filtro Estricto de Hoy** + **Sonda RSS**.")
+st.markdown("Vigilancia de medios: **Filtro Estricto de Hoy** + **Sonda RSS Blindada**.")
 
 tab1, tab2 = st.tabs(["🌐 Vigilancia de Medios", "🚀 Tendencias en X"])
 
@@ -156,8 +152,8 @@ with tab1:
         if not keywords_list:
             st.warning("Introduce palabras clave.")
         else:
-            with st.spinner('Consultando servidores...'):
-                if modo == "Global (NewsAPI)":
+            with st.spinner('Buscando la información más reciente...'):
+                if modo == la_modo := "Global (NewsAPI)":
                     noticias, periodo = obtener_noticias_api(api_key, keywords_list)
                 else:
                     noticias, periodo = obtener_noticias_rss(keywords_list)
@@ -166,8 +162,10 @@ with tab1:
                     st.success(f"Resultado: {periodo}")
                     df = pd.DataFrame(noticias)[['title', 'source', 'publishedAt', 'url']]
                     df.columns = ['Título', 'Fuente', 'Fecha', 'Enlace']
+                    csv = df.to_csv(index=False).encode('utf-8')
+                    st.download_button("📥 Descargar CSV", data=csv, 
+                                     file_name=f"tendencias_{datetime.now().strftime('%Y%m%d')}.csv", mime='text/csv')
                     st.dataframe(df, use_container_width=True)
-                    
                     st.markdown("---")
                     st.subheader("📄 Análisis Detallado")
                     for art in noticias[:num_results]:
@@ -181,5 +179,4 @@ with tab1:
                                 st.markdown(f"[Leer completo ↗️]({art['url']})")
                             st.markdown("---")
                 else:
-                    # AQUÍ ESTÁ LA CLAVE: ahora el mensaje de error te dirá EXACTAMENTE qué pasó
-                    st.error(f"❌ {periodo}")
+                    st.error(f"No se han encontrado noticias hoy mediante {modo}.")
