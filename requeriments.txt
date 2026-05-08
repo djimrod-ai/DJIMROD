@@ -1,7 +1,4 @@
 streamlit
 requests
 pandas
-gspread
-google-auth
-numpy
 feedparser
