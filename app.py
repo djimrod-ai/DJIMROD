@@ -4,46 +4,96 @@ import pandas as pd
 from datetime import datetime
 import xml.etree.ElementTree as ET
 
-# --- CONFIGURACIÓN DE LA PÁGINA ---
-st.set_page_config(page_title="Intelligence Hub Editorial Max", page_icon="📰", layout="wide")
+# --- CONFIGURACIÓN de la PÁGINA ---
+st.set_page_config(page_title="Intelligence Hub Editorial", page_icon="📰", layout="wide")
 
-# --- ESTILOS CSS PREMIUM ---
-st.markdown("""
+# --- GESTIÓN de COLORES (SISTEMA de TEMAS EXPANDIDO) ---
+THEMES = {
+    "🟦 Azul Corporativo": "#1E3A8A",
+    "🟩 Verde Editorial": "#065F46",
+    "🟥 Rojo Alerta": "#991B1B",
+    "🟪 Violeta Moderno": "#5B21B6",
+    "🔘 Gris Elegante": "#374151",
+    "⬛ Negro Profundo": "#000000",
+    "⬜ Blanco Perlado": "#F5F5F5", 
+    "📀 Dorado Premium": "#B8860B",
+    "💎 Turquesa Tech": "#0D9488",
+    "🌸 Coral Moderno": "#F43F5E",
+    "🌊 Azul Oceano": "#0369A1",
+    "🎨 Color Personalizado": "CUSTOM"
+}
+
+# Inicializamos el color en la sesión
+if 'chosen_color' not in st.session_state:
+    st.session_state['chosen_color'] = THEMES["🟦 Azul Corporativo"]
+
+# --- SIDEBAR: CONFIGURACIÓN DE APARIENCIA ---
+st.sidebar.markdown("<h2 style='color: #1E3A8A;'>🎨 Diseño de Interfaz</h2>", unsafe_allow_html=True)
+
+selected_theme = st.sidebar.selectbox("Elige un tema visual", list(THEMES.keys()))
+
+if selected_theme == "🎨 Color Personalizado":
+    custom_color = st.sidebar.color_picker("Elige tu color favorito", "#3B82F6")
+    st.session_state['chosen_color'] = custom_color
+else:
+    st.session_state['chosen_color'] = THEMES[selected_theme]
+
+color = st.session_state['chosen_color']
+
+# Lógica para evitar que el blanco desaparezca (Añadimos un borde gris si el color es muy claro)
+border_color = color if color != "#F5F5F5" else "#D1D5DB"
+
+# --- INYECCIÓN de CSS DINÁMICO ---
+st.markdown(f"""
     <style>
-    .main { background-color: #f8f9fa; font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; }
-    .stButton>button { width: 100%; border-radius: 12px; font-weight: bold; background-color: #1E3A8A !important; color: white !important; }
-    .news-card {
+    .stApp {{ background-color: #fbfbfb; }}
+    
+    .main-title {{
+        background: linear-gradient(90deg, {color} 0%, #3B82F6 100%);
+        -webkit-background-clip: text;
+        -webkit-text-fill-color: transparent;
+        font-weight: 800;
+        text-align: center;
+        font-size: 3rem !important;
+        margin-bottom: 10px;
+    }}
+    
+    .news-card {{
         background-color: white;
         padding: 20px;
         border-radius: 15px;
-        border-left: 6px solid #1E3A8A;
+        border-left: 8px solid {border_color};
         margin-bottom: 20px;
         box-shadow: 0 4px 6px rgba(0,0,0,0.1);
-    }
-    .source-tag {
-        background-color: #E0E7FF;
-        color: #4338CA;
-        padding: 2px 10px;
-        border-radius: 10px;
-        font-size: 0.8rem;
+        transition: all 0.3s ease;
+    }}
+    .news-card:hover {{
+        transform: translateY(-5px);
+        box-shadow: 0 10px 20px rgba(0,0,0,0.1);
+    }}
+    
+    .source-tag {{
+        background-color: {color}22; 
+        color: {color};
+        padding: 4px 12px;
+        border-radius: 8px;
+        font-size: 0.75rem;
         font-weight: bold;
         text-transform: uppercase;
-    }
-    .date-tag {
-        color: #6B7280;
-        font-size: 0.8rem;
-        margin-left: 10px;
-    }
-    .main-title {
-        color: #1E3A8A;
-        font-weight: 800;
-        text-align: center;
-        margin-bottom: 20px;
-    }
+        border: 1px solid {border_color};
+    }}
+    
+    .stButton>button {{
+        background: linear-gradient(90deg, {color} 0%, #3B82F6 100%) !important;
+        color: white !important;
+        border: none !important;
+        border-radius: 12px !important;
+        font-weight: bold !important;
+    }}
     </style>
     """, unsafe_allow_html=True)
 
-# --- LIBRERÍA DE RSS EXPANDIDA (Fuentes Españolas y Globales) ---
+# --- LÓGICA de DATOS (Sigue siendo la misma potencia) ---
 RSS_FEEDS = {
     "El País": "https://www.elpais.com/rss/0/latest.xml",
     "El Mundo": "https://www.elmundo.es/rss/estC1.xml",
@@ -51,53 +101,22 @@ RSS_FEEDS = {
     "RTVE": "https://www.rtve.es/rss/todas-las-noticias.rss",
     "BBC Mundo": "https://www.bbc.com/mundo/index.xml",
     "EFE": "https://www.efe.com/rss/estatico/todas.xml",
-    "La Vanguardia": "https://www.lavanguardia.com/rss/ultima-hora",
-    "El Confidencial": "https://www.elconfidencial.com/rss",
-    "El Español": "https://www.elespanol.com/rss/",
-    "Diario de Sevilla": "https://www.diariodesevilla.es/rss/noticias.xml", # Intento de acceso directo
 }
 
-# --- LIBRERÍA MAESTRA DE TEMAS (SÚPER EXPANDIDA) ---
 all_themes = {
-    # TECNOLOGÍA E IA
-    "🤖 IA y Futuro": "ChatGPT\nClaude\nGemini\nSora\nIA\nInteligencia Artificial\nAlgoritmos\nRobótica",
-    "💻 Tecnología y Chips": "Nvidia\nApple\nSemicondutores\nHardware\nSoftware\nComputación Cuántica",
-    "🪙 Cripto y Web3": "Bitcoin\nEthereum\nBlockchain\nSolana\nCripto\nDeFi",
-    "🛡️ Ciberseguridad": "Hacking\nPhishing\nPrivacidad\nSoberanía Digital\nMalware",
-    
-    # ECONOMÍA Y NEGOCIOS
-    "📈 Macroeconomía": "Inflación\nPIB\nRecesión\nBCE\nEuribor\nEconomía\nBolsa\nFinanzas",
-    "🏢 Empresas y Startups": "Unicornios\nSaaS\nInversión\nEmprendimiento\nS&P500\nNasdaq",
-    "🛒 Comercio y Retail": "Amazon\nE-commerce\nConsumo\nLogística\nRetail",
-    
-    # POLÍTICA Y GEOPOLÍTICA
-    "🌍 Geopolítica Global": "Rusia\nUcrania\nChina\nOTAN\nIsrael\nGaza\nEEUU\nConflictos",
-    "🇪🇸 Política España": "Sánchez\nCortes Generales\nGobierno\nAutonomías\nElecciones",
-    "🇺🇸 Política USA": "Trump\nBiden\nCongreso\nCasa Blanca\nDemócratas\nRepublicanos",
-    "🇺🇳 Diplomacia y ONU": "Naciones Unidas\nFMI\nBanco Mundial\nTratados\nDerechos Humanos",
-    
-    # SOCIEDAD Y CULTURA
-    "👥 Sociedad y Actualidad": "Huelgas\nSindicatos\n Pensiones\nEducación\nSalud Pública",
-    "⚖️ Justicia y Leyes": "Tribunal Supremo\nSentencias\nLeyes\nJusticia\nConstitución",
-    "🎨 Cultura y Ocio": "Cine\nLiteratura\nTeatro\nArte\nFestivales\nstreaming",
-    "🏥 Salud y Ciencia": "Vacunas\nBiotecnología\nOMS\nCáncer\nMedicina\nGenética",
-    
-    # MEDIO AMBIENTE
-    "🌱 Ecología y Clima": "Cambio Climático\nEnergía Solar\nCOP28\nCO2\nSostenibilidad\nSequía",
-    
-    # DEPORTES
-    "⚽ Fútbol": "Champions\nLaLiga\nPremier League\nFichajes\nReal Madrid\nBarça",
-    "🏎️ Motor y Otros": "Fórmula 1\nFerrari\nRed Bull\nTenis\nOlimpiadas\nNBA",
+    "🤖 IA: Generativa": "ChatGPT\nClaude\nGemini\nMidjourney\nLLM\nSora\nPrompts\nInteligencia Artificial",
+    "🪙 Criptomonedas": "Bitcoin\nEthereum\nSolana\nHalving\nStablecoins\nCripto",
+    "📈 Macroeconomía": "Inflación\nPIB\nRecesيón\nBCE\nEuribor\nEconomía\nBolsa",
+    "🌍 Geopolítica": "Rusia\nUcrania\nChina\nOTAN\nIsrael\nGaza\nConflictos",
+    "🌱 Medio Ambiente": "Cambio Climático\nEnergía Solar\nCOP28\nCO2\nSostenibilidad",
+    "⚽ Deportes": "Champions\nLaLiga\nFichajes\nF1\nTenis\nDeportes",
+    "🎮 Gaming y Tech": "PlayStation\nXbox\nNintendo\nSteam\nE-sports\nTecnología",
 }
 
-# --- LÓGICA de BÚSQUEDA GLOBAL (Google News) ---
 def obtener_noticias_google(keywords):
     todas_las_noticias = []
-    # Unimos las keywords para una búsqueda masiva
     query = ' OR '.join(keywords).replace(' ', '+')
-    # Buscamos en Google News ( la fuente más completa de la web)
     url = f"https://news.google.com/rss/search?q={query}&hl=es-ES&gl=ES&ceid=ES:es"
-    
     try:
         headers = {'User-Agent': 'Mozilla/5.0'}
         response = requests.get(url, headers=headers, timeout=10)
@@ -108,18 +127,15 @@ def obtener_noticias_google(keywords):
                 link = item.find('link').text if item.find('link') is not None else "#"
                 date = item.find('pubDate').text if item.find('pubDate') is not None else "Reciente"
                 desc = item.find('description').text if item.find('description') is not None else "Sin descripción"
-                
                 source = " la web"
                 if " - " in title:
                     parts = title.split(" - ")
                     source = parts[-1]
                     title = " - ".join(parts[:-1])
-
                 todas_las_noticias.append({'title': title, 'url': link, 'source': source, 'publishedAt': date, 'description': desc})
     except: pass
     return todas_las_noticias
 
-# --- LÓGICA NewsAPI ---
 def obtener_noticias_api(api_key, keywords):
     query = ' OR '.join(keywords)
     today = datetime.now().strftime('%Y-%m-%d')
@@ -138,8 +154,7 @@ if api_key is None:
     st.error("❌ API Key no configurada en Secrets.")
     st.stop()
 
-# --- SIDEBAR ---
-st.sidebar.markdown("<h2 style='color: #1E3A8A;'>⚙️ Control Hub</h2>", unsafe_allow_html=True)
+# --- SIDEBAR CONTINUACIÓN ---
 st.sidebar.markdown("---")
 search_query = st.sidebar.text_input("🔍 Buscar tema maestro")
 filtered_presets = {k: v for k, v in all_themes.items() if search_query.lower() in k.lower()}
@@ -159,7 +174,7 @@ keywords_list = [k.strip() for k in keywords_input.split('\n') if k.strip()]
 
 # --- CUERPO PRINCIPAL ---
 st.markdown("<h1 class='main-title'>📰 Intelligence Hub Editorial</h1>", unsafe_allow_html=True)
-st.markdown("<p style='text-align: center; color: #6B7280; margin-bottom: 30px;'>Vigilancia de medios de alta precisión: Google News + NewsAPI + Redes Sociales</p>", unsafe_allow_html=True)
+st.markdown("<p style='text-align: center; color: #6B7280; margin-bottom: 30px;'>Vigilancia la más avanzada: Datos Globales + Inmediatez de Redes</p>", unsafe_allow_html=True)
 
 tab1, tab2 = st.tabs(["🌐 Vigilancia de Medios", "🚀 Tendencias en X"])
 
@@ -181,7 +196,7 @@ with tab2:
 with tab1:
     col_config1, col_config2 = st.columns([2, 1])
     with col_config1:
-        modo = st.radio("Motor de Búsqueda:", ["Google News (Búsqueda Global)", "Global (NewsAPI)"], index=0, horizontal=True)
+        modo = st.radio("Motor de Búsqueda:", ["Google News (Súper Búsqueda)", "Global (NewsAPI)"], index=0, horizontal=True)
     with col_config2:
         num_results = st.slider("Cantidad de noticias", 5, 100, 20)
 
@@ -189,20 +204,20 @@ with tab1:
         if not keywords_list:
             st.warning("Introduce palabras clave.")
         else:
-            with st.spinner('Escaneando la red de medios...'):
+            with st.spinner('Procesando datos globales...'):
                 if modo == "Global (NewsAPI)":
                     noticias_full, periodo = obtener_noticias_api(api_key, keywords_list)
                 else:
                     noticias_full = obtener_noticias_google(keywords_list)
-                    periodo = "Google News (Búsqueda Global)"
+                    periodo = "Google News (Toda la Web)"
                 
                 if noticias_full:
                     noticias = noticias_full[:num_results]
                     
-                    # --- DASHBOARD DE MÉTRICAS ---
+                    # Dashboard de Métricas
                     m1, m2, m3 = st.columns(3)
                     m1.metric("Noticias Encontradas", len(noticias))
-                    m2.metric("Fuentes Únicas", len(set([n['source'] for n in noticias])))
+                    m2.metric("Fuentes", len(set([n['source'] for n in noticias])))
                     m3.metric("Estado", "Sincronizado")
                     
                     st.markdown("---")
@@ -228,4 +243,4 @@ with tab1:
                             </div>
                             """, unsafe_allow_html=True)
                 else:
-                    st.error(f"No se han encontrado noticias mediante {modo}.")
+                    st.error(f"No se encontraron noticias mediante {modo}.")
