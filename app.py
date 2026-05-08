@@ -21,7 +21,7 @@ st.markdown("""
     </style>
     """, unsafe_allow_html=True)
 
-# --- LIBRERÍA de RSS (Súper Inmediatez) ---
+# --- LIBRERÍA de RSS ---
 RSS_FEEDS = {
     "El País": "https://www.elpais.com/rss/0/latest.xml",
     "El Mundo": "https://www.elmundo.es/rss/estC1.xml",
@@ -47,48 +47,52 @@ all_themes = {
 
 # --- LÓGICA de BÚSQUEDA GLOBAL (ESTRICTAMENTE HOY) ---
 def obtener_noticias_api(api_key, keywords):
-    """Busca noticias estrictamente publicadas hoy"""
     query = ' OR '.join(keywords)
     today = datetime.now().strftime('%Y-%m-%d')
-    
-    # Filtro ESTRICTO: solo desde hoy
     url = f"https://newsapi.org/v2/everything?q={query}&language=es&sortBy=publishedAt&from={today}&apiKey={api_key}"
-    
     try:
         res = requests.get(url)
         if res.status_code == 200:
             art = res.json().get('articles', [])
-            if art: 
-                return art, "Publicadas HOY (API)"
-            else:
-                return [], "Sin noticias indexadas HOY"
-        else:
-            return [], f"Error API {res.status_code}"
-    except:
-        return [], "Error de conexión"
+            if art: return art, "Publicadas HOY (API)"
+            else: return [], "Sin noticias indexadas HOY"
+        else: return [], f"Error API {res.status_code}"
+    except: return [], "Error de conexión"
 
-# --- LÓGICA de BÚSQUEDA RSS (TIEMPO REAL ABSOLUTO) ---
+# --- LÓGICA de BÚSQUEDA RSS (CON MODO RADAR) ---
 def obtener_noticias_rss(keywords):
-    """Busca en los feeds RSS (la forma más rápida de obtener noticias)"""
+    """Busca noticias en tiempo real. Si no hay coincidencias, activa el Modo Radar."""
     if not RSS_AVAILABLE:
         return [], "Librería feedparser no instalada"
         
-    noticias_reales = []
+    noticias_coincidentes = []
+    todas_las_recientes = [] 
+    
     for medio, url in RSS_FEEDS.items():
         try:
             feed = feedparser.parse(url)
             for entry in feed.entries:
-                # Buscamos palabras clave en título o resumen
+                # Creamos la noticia
+                noticia = {
+                    'title': entry.title,
+                    'url': entry.link,
+                    'source': medio,
+                    'publishedAt': entry.published if hasattr(entry, 'published') else "Reciente",
+                    'description': entry.summary if hasattr(entry, 'summary') else ""
+                }
+                todas_las_recientes.append(noticia)
+                
+                # Verificamos si coincide con las keywords
                 if any(word.lower() in entry.title.lower() or word.lower() in entry.summary.lower() for word in keywords):
-                    noticias_reales.append({
-                        'title': entry.title,
-                        'url': entry.link,
-                        'source': medio,
-                        'publishedAt': entry.published if hasattr(entry, 'published') else "Reciente",
-                        'description': entry.summary if hasattr(entry, 'summary') else ""
-                    })
+                    noticias_coincidentes.append(noticia)
         except: pass
-    return noticias_reales, "Tiempo Real (Sonda RSS)"
+    
+    # DECISIÓN: ¿Devolvemos coincidencias o el radar de actualidad?
+    if noticias_coincidentes:
+        return noticias_coincidentes, "Tiempo Real (Coincidencias Exactas)"
+    else:
+        # Devolvemos las 20 más recientes de los medios para que no esté vacío
+        return todas_las_recientes[:20], "Modo Radar (Últimas noticias generales)"
 
 # --- SEGURIDAD ---
 api_key = st.secrets.get("NEWS_API_KEY", None)
@@ -116,7 +120,7 @@ keywords_list = [k.strip() for k in keywords_input.split('\n') if k.strip()]
 
 # --- CUERPO PRINCIPAL ---
 st.title("📰 Intelligence Hub Editorial")
-st.markdown("Vigilancia de medios: **Filtro Estricto de Hoy** + **Inmediatez RSS**.")
+st.markdown("Vigilancia de medios: **Filtro Estricto de Hoy** + **Sonda RSS en Tiempo Real**.")
 
 tab1, tab2 = st.tabs(["🌐 Vigilancia de Medios", "🚀 Tendencias en X"])
 
@@ -134,14 +138,10 @@ with tab2:
 
 with tab1:
     st.subheader("Buscador de Noticias Recientes")
-    
-    # Selector de modo: RSS es el más rápido, API es el más amplio
     modo = st.radio("Selecciona el motor de búsqueda:", 
                     ["Instantánea (RSS Feeds)", "Global (NewsAPI)"], 
                     index=0, horizontal=True)
     
-    st.info("💡 **Sugerencia:** Usa 'Instantánea (RSS)' para noticias de hace minutos. Usa 'Global' para un análisis más amplio del día.")
-
     num_results = st.slider("Cantidad de noticias a mostrar", 5, 50, 20)
 
     if st.button("🔍 Ejecutar Rastreo"):
@@ -177,4 +177,4 @@ with tab1:
                                 st.markdown(f"[Leer completo ↗️]({art['url']})")
                             st.markdown("---")
                 else:
-                    st.error(f"No se han encontrado noticias publicadas HOY para estos temas mediante {modo}.")
+                    st.error(f"No se han encontrado noticias hoy mediante {modo}.")
