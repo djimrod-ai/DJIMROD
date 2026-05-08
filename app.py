@@ -13,6 +13,10 @@ import streamlit as st
 import requests
 import pandas as pd
 from datetime import datetime
+import feedparser # <--- Esto es lo que dará error si el requirements.txt no funciona
+
+# ... el resto del código sigue igual ...
+
 
 # --- CONFIGURACIÓN DE LA PÁGINA ---
 st.set_page_config(page_title="Intelligence Hub Editorial Pro", page_icon="📰", layout="wide")
