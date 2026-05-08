@@ -12,10 +12,12 @@ st.markdown("""
     <style>
     .main { background-color: #f8f9fa; }
     .stButton>button { width: 100%; border-radius: 20px; font-weight: bold; }
+    .match-tag { background-color: #d4edda; color: #155724; padding: 2px 8px; border-radius: 5px; font-size: 12px; font-weight: bold; }
+    .general-tag { background-color: #e2e3e5; color: #383d41; padding: 2px 8px;C border-radius: 5px; font-size: 12px; }
     </style>
     """, unsafe_allow_html=True)
 
-# --- LIBRERÍA de RSS ---
+# --- LIBRERÍA DE RSS AMPLIADA (Máxima cobertura) ---
 RSS_FEEDS = {
     "El País": "https://www.elpais.com/rss/0/latest.xml",
     "El Mundo": "https://www.elmundo.es/rss/estC1.xml",
@@ -23,20 +25,22 @@ RSS_FEEDS = {
     "RTVE": "https://www.rtve.es/rss/todas-las-noticias.rss",
     "BBC Mundo": "https://www.bbc.com/mundo/index.xml",
     "EFE": "https://www.efe.com/rss/estatico/todas.xml",
+    "La Vanguardia": "https://www.lavanguardia.com/rss/ultima-hora",
+    "El Confidencial": "https://www.elconfidencial.com/rss",
 }
 
-# --- LIBRERÍA MAESTRA de TEMAS ---
+# --- LIBRERÍA MAESTRA de TEMAS (Súper Optimizada) ---
 all_themes = {
-    "🤖 IA: Generativa": "ChatGPT\nClaude\nGemini\nMidjourney\nLLM\nSora\nPrompts\nInteligencia Artificial",
-    "🪙 Criptomonedas": "Bitcoin\nEthereum\nSolana\nHalving\nStablecoins\nCripto",
-    "📈 Macroeconomía": "Inflación\nPIB\nRecesión\nBCE\nEuribor\nEconomía\nBolsa",
-    "🌍 Geopolítica": "Rusia\nUcrania\nChina\nOTAN\nIsrael\nGaza\nConflictos",
-    "🌱 Medio Ambiente": "Cambio Climático\nEnergía Solar\nCOP28\nCO2\nSostenibilidad",
-    "⚽ Deportes": "Champions\nLaLiga\nFichajes\nF1\nTenis\nDeportes",
-    "🎮 Gaming y Tech": "PlayStation\nXbox\nNintendo\nSteam\nE-sports\nTecnología",
+    "🤖 IA: Generativa": "ChatGPT\nClaude\nGemini\nSora\nIA\nInteligencia Artificial\nAlgoritmo",
+    "🪙 Criptomonedas": "Bitcoin\nEthereum\nCripto\nBlockchain\nBtc\nHalving",
+    "📈 Economía": "Bolsa\nInflación\nBCE\nEuribor\nEconomía\nPIB\nFinanzas",
+    "🌍 Geopolítica": "Rusia\nUcrania\nChina\nOTAN\nIsrael\nGaza\nGuerra\nConflicto",
+    "🌱 Medio Ambiente": "Clima\nSolar\nCO2\nSostenibilidad\nEcología\nMedio Ambiente",
+    "⚽ Deportes": "Champions\nLaLiga\nFichajes\nF1\nDeportes\nFútbol",
+    "🎮 Gaming y Tech": "PlayStation\nXbox\nNvidia\nApple\nTecnología\nGaming",
 }
 
-# --- LÓGICA NewsAPI ---
+# --- LÓGICA NewsAPI (ESTRICTA) ---
 def obtener_noticias_api(api_key, keywords):
     query = ' OR '.join(keywords)
     today = datetime.now().strftime('%Y-%m-%d')
@@ -49,11 +53,9 @@ def obtener_noticias_api(api_key, keywords):
         return [], f"Error API {res.status_code}"
     except: return [], "Error de conexión"
 
-# --- LÓGICA RSS (HÍBRIDA CON ETIQUETAS) ---
+# --- LÓGICA RSS (SÚPER-SENSIBLE) ---
 def obtener_noticias_rss(keywords):
     noticias_finales = []
-    
-    # Cabecera para evitar bloqueos (User-Agent)
     headers = {'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 SafariP537.36'}
     
     for medio, url in RSS_FEEDS.items():
@@ -67,22 +69,16 @@ def obtener_noticias_rss(keywords):
                     desc = item.find('description').text if item.find('description') is not None else ""
                     date = item.find('pubDate').text if item.find('pubDate') is not None else "Reciente"
                     
-                    # Determinar si es coincidencia o general
-                    es_match = any(word.lower() in title.lower() or word.lower() in desc.lower() for word in keywords)
-                    tipo = "⭐ MATCH" if es_match else "🕒 ACTUALIDAD"
+                    # BUSCADA SENSIBLE: Convertimos todo a minúsculas para evitar fallos
+                    texto_analizar = (title + " " + desc).lower()
+                    es_match = any(word.lower() in texto_analizar for word in keywords)
                     
-                    noticia = {
-                        'title': title,
-                        'url': link,
-                        'source': medio,
-                        'publishedAt': date,
-                        'description': desc,
-                        'tipo': tipo
-                    }
+                    tipo = "⭐ MATCH" if es_match else "🕒 ACTUALIDAD"
+                    noticia = {'title': title, 'url': link, 'source': medio, 'publishedAt': date, 'description': desc, 'tipo': tipo}
                     noticias_finales.append(noticia)
         except: pass
     
-    # Ordenar: Primero los Matches, luego la actualidad general
+    # Ordenamos para que los MATCH estén siempre arriba
     noticias_finales.sort(key=lambda x: x['tipo'], reverse=True)
     
     if noticias_finales:
@@ -155,21 +151,21 @@ with tab1:
                     st.success(f"Resultado: {periodo}")
                     df = pd.DataFrame(noticias)[['title', 'source', 'publishedAt', 'url']]
                     df.columns = ['Título', 'Fuente', 'Fecha', 'Enlace']
-                    csv = df.to_csv(index=False).encode('utf-8')
-                    st.download_button("📥 Descargar CSV", data=csv, 
-                                     file_name=f"tendencias_{datetime.now().strftime('%Y%m%d')}.csv", mime='text/csv')
                     st.dataframe(df, use_container_width=True)
                     st.markdown("---")
                     st.subheader("📄 Análisis Detallado")
                     for art in noticias[:num_results]:
                         with st.container():
                             tipo = art.get('tipo', 'API')
-                            st.markdown(f"**{tipo}**")
+                            # Etiqueta visual
+                            tag = f'<span class="match-label">{tipo}</span>' if "MATCH" in tipo else f'<span class="general-label">{tipo}</span>'
+                            st.markdown(tag, unsafe_allow_html=True)
                             st.markdown(f"### [{art['title']}]({art['url']})")
                             st.write(f"**{art['source']}** | {art['publishedAt']}")
                             st.write(art['description'])
                             st.markdown("---")
                 else:
                     st.error(f"No se han encontrado noticias hoy mediante {modo}.")
+
 
 
