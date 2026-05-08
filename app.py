@@ -1,3 +1,12 @@
+import subprocess
+import sys
+
+# Este bloque instala la librería si no existe en el sistema
+try:
+    import feedparser
+except ImportError:
+    subprocess.check_call([sys.executable, "-m", "pip", "install", "feedparser"])
+    import feedparser
 import streamlit as st
 import requests
 import pandas as pd
